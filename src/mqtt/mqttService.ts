@@ -15,7 +15,6 @@ import {
   dewPoint,
   equilibriumVaporPressure,
   frostPoint,
-  isBatteryLow,
   vaporPressureDeficit,
 } from '../ruuvi/ruuviCalculations.js';
 // ----------------------
@@ -127,7 +126,6 @@ export function startMqtt() {
 
         if (sample.batteryVoltage !== undefined) {
           sample.batteryPercentage = batteryPercentage(sample.batteryVoltage);
-          sample.batteryLow = isBatteryLow(sample.batteryVoltage);
         }
       }
       // Push to Influx via Buffer

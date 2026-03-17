@@ -25,7 +25,6 @@ export class RuuviData {
   vaporPressureDeficit?: number;
   // Batterie
   batteryPercentage?: number;
-  batteryLow?: boolean;
 
   constructor(
     public coordinates: string,

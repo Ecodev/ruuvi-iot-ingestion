@@ -115,11 +115,3 @@ export function batteryPercentage(voltage: number): number {
   if (voltage >= 2.0) return (voltage - 2.0) / (2.5 - 2.0) * 25;
   return 0;
 }
-
-/**
- * Low battery flag
- * Threshold set at 2.5V — below this, readings may become unstable
- */
-export function isBatteryLow(voltage: number): boolean {
-  return voltage < 2.5;
-}
