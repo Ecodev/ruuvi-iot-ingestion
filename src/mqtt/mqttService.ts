@@ -11,7 +11,12 @@ import {
   accelerationAngles,
   accelerationTotal,
   airDensity,
+  batteryPercentage,
+  dewPoint,
   equilibriumVaporPressure,
+  frostPoint,
+  isBatteryLow,
+  vaporPressureDeficit,
 } from '../ruuvi/ruuviCalculations.js';
 // ----------------------
 // Optimisation Ruuvi BLE
@@ -113,6 +118,16 @@ export function startMqtt() {
           sample.accelerationAngleFromX = angles.angleFromX;
           sample.accelerationAngleFromY = angles.angleFromY;
           sample.accelerationAngleFromZ = angles.angleFromZ;
+        }
+        if (temperature !== undefined && humidity !== undefined) {
+          sample.dewPoint = dewPoint(temperature, humidity);
+          sample.frostPoint = frostPoint(temperature, humidity);
+          sample.vaporPressureDeficit = vaporPressureDeficit(temperature, humidity);
+        }
+
+        if (sample.batteryVoltage !== undefined) {
+          sample.batteryPercentage = batteryPercentage(sample.batteryVoltage);
+          sample.batteryLow = isBatteryLow(sample.batteryVoltage);
         }
       }
       // Push to Influx via Buffer

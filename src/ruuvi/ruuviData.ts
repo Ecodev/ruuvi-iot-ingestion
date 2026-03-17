@@ -20,6 +20,12 @@ export class RuuviData {
   accelerationAngleFromX?: number;
   accelerationAngleFromY?: number;
   accelerationAngleFromZ?: number;
+  dewPoint?: number;
+  frostPoint?: number;
+  vaporPressureDeficit?: number;
+  // Batterie
+  batteryPercentage?: number;
+  batteryLow?: boolean;
 
   constructor(
     public coordinates: string,

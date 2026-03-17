@@ -30,6 +30,10 @@ function toPoint(data: RuuviData): Point {
     txPower: data.txPower,
     movementCounter: data.movementCounter,
     measurementSequenceNumber: data.measurementSequenceNumber,
+    dewPoint: data.dewPoint,
+    frostPoint: data.frostPoint,
+    vaporPressureDeficit: data.vaporPressureDeficit,
+    batteryPercentage: data.batteryPercentage,
   };
   for (const [key, value] of Object.entries(fields)) {
     if (value != null) point.floatField(key, value);
