@@ -4,6 +4,7 @@ import { config } from "../config/env.js";
 import { register, collectDefaultMetrics } from "prom-client";
 export async function startHttpServer() {
   const fastify = Fastify();
+  // Protection against brute-force or DoS attacks
   await fastify.register(rateLimit, {
     max: 100, // 100 requests
     timeWindow: '1 minute'
