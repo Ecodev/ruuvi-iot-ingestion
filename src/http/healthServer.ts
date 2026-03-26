@@ -5,6 +5,7 @@ import { register, collectDefaultMetrics } from "prom-client";
 import path from 'path';
 import fs from 'fs';
 import { logger } from '../logger/logger.js';
+import { GatewayConfigurationSchema } from '../ruuvi/gatewayConfigurationSchema.js';
 const GW_CONFIG_DIR = path.resolve('config/gw_cfg');
 export async function startHttpServer() {
   const fastify = Fastify();
@@ -56,6 +57,12 @@ export async function startHttpServer() {
 
     try {
       const raw = fs.readFileSync(cfgPath, 'utf-8');
+      const configData = JSON.parse(raw);
+      const validationResult = GatewayConfigurationSchema.safeParse(configData);
+      if (!validationResult.success) {
+        logger.error({ cfgPath, errors: validationResult.error.errors }, 'Gateway config validation failed');
+        return reply.code(500).send({ error: 'Invalid config' });
+      }
       reply.header('Content-Type', 'application/json');
       return reply.send(raw);
     } catch (err) {
