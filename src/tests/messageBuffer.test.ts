@@ -28,7 +28,7 @@ describe('MessageBuffer', () => {
     // Should trigger flush on third push
     buffer.push({ id: 3 });
     // Wait for async flush
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFlushFn).toHaveBeenCalled();
   });
 
@@ -37,12 +37,9 @@ describe('MessageBuffer', () => {
     buffer.push({ id: 1 });
     buffer.push({ id: 2 });
     buffer.push({ id: 3 });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFlushFn).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 1 }),
-        expect.objectContaining({ id: 2 })
-      ])
+      expect.arrayContaining([expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 2 })]),
     );
   });
 
@@ -52,4 +49,3 @@ describe('MessageBuffer', () => {
     expect(mockFlushFn).not.toHaveBeenCalled();
   });
 });
-

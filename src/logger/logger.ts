@@ -1,7 +1,5 @@
-import pino from "pino";
+import pino from 'pino';
 export const logger = pino({
-  level: "info",
-  transport: process.env.NODE_ENV === "development"
-    ? { target: "pino-pretty" }
-    : undefined
+  level: 'info',
+  transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
 });

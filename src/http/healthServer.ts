@@ -13,9 +13,28 @@ function normalizeMac(mac?: string): string | undefined {
   if (!mac) return undefined;
   return mac.toUpperCase().replace(/[^A-F0-9]/g, '');
 }
+function normalizeMacMap(macMap: Record<string, string>): Record<string, string> {
+  if (!macMap) return {};
+  try {
+    const normalized: Record<string, string> = {};
+    for (const [mac, name] of Object.entries(macMap)) {
+      const key = normalizeMac(mac);
+      if (!key) continue;
+      normalized[key] = name;
+    }
+    return normalized;
+  } catch {
+    logger.error(`Failed to normalize MAC map: ${JSON.stringify(macMap)}`);
+    return {};
+  }
+}
 
 function safeJsonParse(raw: string) {
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function validateGwCfgAuth(authHeader: string): boolean {
@@ -52,7 +71,7 @@ async function handleGwCfg(req: FastifyRequest, reply: FastifyReply) {
   let cfgPath = path.join(GW_CONFIG_DIR, 'gw_cfg.json');
 
   if (mac) {
-    const gatewayName = config.gatewayNames[mac];
+    const gatewayName = normalizeMacMap(config.gatewayNames)[mac];
 
     if (gatewayName) {
       const namePath = path.join(GW_CONFIG_DIR, `${gatewayName.replace(/\s+/g, '-').toLowerCase()}.json`);

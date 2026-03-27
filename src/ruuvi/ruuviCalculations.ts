@@ -43,7 +43,6 @@ export function absoluteHumidity(temperatureC: number, relativeHumidityPct: numb
   return (pv / (Rv * tempK)) * 1000;
 }
 
-
 /**
  * Density of humid air (kg/m³)
  * Ideal gas law with correction for water vapor
@@ -71,10 +70,7 @@ export function accelerationTotal(x: number, y: number, z: number): number {
  * < 0.4 kPa: risk of mould
  * > 1.6 kPa: water stress
  */
-export function vaporPressureDeficit(
-  temperatureC: number,
-  relativeHumidityPct: number
-): number {
+export function vaporPressureDeficit(temperatureC: number, relativeHumidityPct: number): number {
   const evp = equilibriumVaporPressure(temperatureC); // en Pa
   const vpd = evp * (1 - relativeHumidityPct / 100);
   return vpd / 1000; // converti en kPa
@@ -108,9 +104,9 @@ export function accelerationAngles(
  */
 export function batteryPercentage(voltage: number): number {
   if (voltage >= 3.0) return 100;
-  if (voltage >= 2.9) return 75 + (voltage - 2.9) / (3.0 - 2.9) * 25;
-  if (voltage >= 2.7) return 50 + (voltage - 2.7) / (2.9 - 2.7) * 25;
-  if (voltage >= 2.5) return 25 + (voltage - 2.5) / (2.7 - 2.5) * 25;
-  if (voltage >= 2.0) return (voltage - 2.0) / (2.5 - 2.0) * 25;
+  if (voltage >= 2.9) return 75 + ((voltage - 2.9) / (3.0 - 2.9)) * 25;
+  if (voltage >= 2.7) return 50 + ((voltage - 2.7) / (2.9 - 2.7)) * 25;
+  if (voltage >= 2.5) return 25 + ((voltage - 2.5) / (2.7 - 2.5)) * 25;
+  if (voltage >= 2.0) return ((voltage - 2.0) / (2.5 - 2.0)) * 25;
   return 0;
 }

@@ -42,10 +42,14 @@ const mqttMessagesInvalid = new Counter({
 // Buffers
 // ----------------------
 const influxBuffer =
-  config.storageBackend !== 'mariadb' ? new MessageBuffer<RuuviData>(config.bufferSize, influxWriteBatch, 'influx') : null;
+  config.storageBackend !== 'mariadb'
+    ? new MessageBuffer<RuuviData>(config.bufferSize, influxWriteBatch, 'influx')
+    : null;
 
 const mariaBuffer =
-  config.storageBackend !== 'influxdb' ? new MessageBuffer<RuuviData>(config.mariaBufferSize, mariaWriteBatch, 'maria') : null;
+  config.storageBackend !== 'influxdb'
+    ? new MessageBuffer<RuuviData>(config.mariaBufferSize, mariaWriteBatch, 'maria')
+    : null;
 
 setInterval(() => {
   influxBuffer?.flush();

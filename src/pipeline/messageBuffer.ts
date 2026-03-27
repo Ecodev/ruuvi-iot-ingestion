@@ -3,7 +3,7 @@ import { Gauge } from 'prom-client';
 const bufferSize = new Gauge({
   name: 'ruuvi_buffer_size',
   help: 'Current buffer size',
-  labelNames: ['type'] // Influx or MariaDB buffer size
+  labelNames: ['type'], // Influx or MariaDB buffer size
 });
 
 export class MessageBuffer<T> {
@@ -11,7 +11,7 @@ export class MessageBuffer<T> {
   constructor(
     private readonly maxSize: number,
     private readonly flushFn: (data: T[]) => Promise<void>,
-    private readonly type: string
+    private readonly type: string,
   ) {}
   push(item: T) {
     this.buffer.push(item);

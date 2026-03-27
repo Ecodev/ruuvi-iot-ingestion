@@ -1,6 +1,6 @@
-import { startHttpServer } from "./http/healthServer.js";
-import { startMqtt } from "./mqtt/mqttService.js";
-import { logger } from "./logger/logger.js";
+import { startHttpServer } from './http/healthServer.js';
+import { startMqtt } from './mqtt/mqttService.js';
+import { logger } from './logger/logger.js';
 import { initMariaSchema } from './maria-db/mariaDbService.js';
 import { config } from './config/env.js';
 import { initDownsampleSchema, startMariaMaintenanceTasks } from './maria-db/mariaDbRetention.js';
@@ -18,9 +18,9 @@ async function main() {
   logger.info(`Ruuvi ingestion service started — storage: ${config.storageBackend}`);
 }
 main();
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 async function shutdown() {
-  logger.info("Shutting down service...");
+  logger.info('Shutting down service...');
   process.exit(0);
 }
