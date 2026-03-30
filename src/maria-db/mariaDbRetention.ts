@@ -59,64 +59,89 @@ async function runDownsample(): Promise<void> {
     // We aggregate the full hours that are not yet present in `measurements_hourly`
     //  DATE_FORMAT rounds to the nearest hour
     const [result] = (await conn.query(`
-      INSERT INTO measurements_hourly (
-        ts_hour, device_id, device_name, gateway_id, gateway_name,
-        sample_count,
-        rssi, temperature, humidity, pressure,
-        acceleration_x, acceleration_y, acceleration_z,
-        battery_voltage,
-        movement_counter_delta,
-        absolute_humidity, dew_point, frost_point, vapor_pressure_deficit,
-        acceleration_total, battery_percentage,
-        temperature_min, temperature_max,
-        humidity_min, humidity_max
-      )
-      SELECT
-        DATE_FORMAT(ts, '%Y-%m-%d %H:00:00') AS ts_hour,
-        device_id,
-        device_name,
-        gateway_id,
-        gateway_name,
-        COUNT(*)                             AS sample_count,
-        AVG(rssi)                            AS rssi,
-        AVG(temperature)                     AS temperature,
-        AVG(humidity)                        AS humidity,
-        AVG(pressure)                        AS pressure,
-        AVG(acceleration_x)                  AS acceleration_x,
-        AVG(acceleration_y)                  AS acceleration_y,
-        AVG(acceleration_z)                  AS acceleration_z,
-        AVG(battery_voltage)                 AS battery_voltage,
-        MAX(movement_counter) - MIN(movement_counter) AS movement_counter_delta,
-        AVG(absolute_humidity)               AS absolute_humidity,
-        AVG(dew_point)                       AS dew_point,
-        AVG(frost_point)                     AS frost_point,
-        AVG(vapor_pressure_deficit)          AS vapor_pressure_deficit,
-        AVG(acceleration_total)              AS acceleration_total,
-        AVG(battery_percentage)              AS battery_percentage,
-        MIN(temperature)                     AS temperature_min,
-        MAX(temperature)                     AS temperature_max,
-        MIN(humidity)                        AS humidity_min,
-        MAX(humidity)                        AS humidity_max
+      INSERT INTO measurements_hourly (ts_hour, device_id, device_name, gateway_id, gateway_name,
+                                       sample_count,
+                                       rssi, temperature, humidity, pressure,
+                                       acceleration_x, acceleration_y, acceleration_z,
+                                       battery_voltage,
+                                       movement_counter_delta,
+                                       absolute_humidity, dew_point, frost_point, vapor_pressure_deficit,
+                                       acceleration_total, battery_percentage,
+                                       temperature_min, temperature_max,
+                                       humidity_min, humidity_max)
+      SELECT DATE_FORMAT(ts, '%Y-%m-%d %H:00:00')          AS ts_hour,
+             device_id,
+             device_name,
+             gateway_id,
+             gateway_name,
+             COUNT(*)                                      AS sample_count,
+             AVG(rssi)                                     AS rssi,
+             AVG(temperature)                              AS temperature,
+             MIN(temperature)                              AS temperature_min,
+             MAX(temperature)                              AS temperature_max,
+             AVG(humidity)                                 AS humidity,
+             MIN(humidity)                                 AS humidity_min,
+             MAX(humidity)                                 AS humidity_max,
+             AVG(pressure)                                 AS pressure,
+             AVG(acceleration_x)                           AS acceleration_x,
+             AVG(acceleration_y)                           AS acceleration_y,
+             AVG(acceleration_z)                           AS acceleration_z,
+             AVG(battery_voltage)                          AS battery_voltage,
+             MAX(movement_counter) - MIN(movement_counter) AS movement_counter_delta,
+             -- Derived fields calculated during aggregation
+             AVG(
+               (humidity / 100) * 611.2
+                 * EXP(
+                 (17.625 * temperature) / (243.04 + temperature)
+                   ) / (461.5 * (temperature + 273.15)) * 1000
+             )                                             AS absolute_humidity,
+             AVG(
+               CASE
+                 WHEN temperature >= 0 THEN
+                   (243.04 * (LN(humidity / 100) + (17.625 * temperature) / (243.04 + temperature)))
+                     /
+                   (17.625 - LN(humidity / 100) - (17.625 * temperature) / (243.04 + temperature))
+                 END
+             )                                             AS dew_point,
+             AVG(
+               IF(temperature < 0, (273.86 * (LN(humidity / 100) + (22.587 * temperature) / (273.86 + temperature)))
+                 / (22.587 - LN(humidity / 100) - (22.587 * temperature) / (273.86 + temperature)),
+                  (243.04 * (LN(humidity / 100) + (17.625 * temperature) / (243.04 + temperature)))
+                    / (17.625 - LN(humidity / 100) - (17.625 * temperature) / (243.04 + temperature)))
+             )                                             AS frost_point,
+             AVG(
+               (611.2 * EXP((17.625 * temperature) / (243.04 + temperature)) * (1 - humidity / 100)) / 1000
+             )                                             AS vapor_pressure_deficit,
+             AVG(
+               SQRT(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z)
+             )                                             AS acceleration_total,
+             AVG(
+               CASE
+                 WHEN battery_voltage >= 3.0 THEN 100.0
+                 WHEN battery_voltage >= 2.9 THEN 75.0 + (battery_voltage - 2.9) / (3.0 - 2.9) * 25.0
+                 WHEN battery_voltage >= 2.7 THEN 50.0 + (battery_voltage - 2.7) / (2.9 - 2.7) * 25.0
+                 WHEN battery_voltage >= 2.5 THEN 25.0 + (battery_voltage - 2.5) / (2.7 - 2.5) * 25.0
+                 WHEN battery_voltage >= 2.0 THEN (battery_voltage - 2.0) / (2.5 - 2.0) * 25.0
+                 ELSE 0.0
+                 END
+             )                                             AS battery_percentage
       FROM measurements
       WHERE
         -- Only full hours (not the current hour)
         ts < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
         -- Only the hours that have not yet been added up
-        AND DATE_FORMAT(ts, '%Y-%m-%d %H:00:00') NOT IN (
-          SELECT ts_hour FROM measurements_hourly
-          WHERE device_id = measurements.device_id
-        )
-      GROUP BY
-        DATE_FORMAT(ts, '%Y-%m-%d %H:00:00'),
-        device_id, device_name, gateway_id, gateway_name
-      ON DUPLICATE KEY UPDATE
-        sample_count       = VALUES(sample_count),
-        temperature        = VALUES(temperature),
-        temperature_min    = VALUES(temperature_min),
-        temperature_max    = VALUES(temperature_max),
-        humidity           = VALUES(humidity),
-        humidity_min       = VALUES(humidity_min),
-        humidity_max       = VALUES(humidity_max)
+        AND DATE_FORMAT(ts, '%Y-%m-%d %H:00:00') NOT IN (SELECT ts_hour
+                                                         FROM measurements_hourly
+                                                         WHERE device_id = measurements.device_id)
+      GROUP BY DATE_FORMAT(ts, '%Y-%m-%d %H:00:00'),
+               gateway_id, gateway_name, device_id, device_name
+      ON DUPLICATE KEY UPDATE sample_count    = VALUES(sample_count),
+                              temperature     = VALUES(temperature),
+                              temperature_min = VALUES(temperature_min),
+                              temperature_max = VALUES(temperature_max),
+                              humidity        = VALUES(humidity),
+                              humidity_min    = VALUES(humidity_min),
+                              humidity_max    = VALUES(humidity_max)
     `)) as any;
 
     const affected = result?.affectedRows ?? 0;

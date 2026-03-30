@@ -1,7 +1,7 @@
 {
   "name": "ruuvi-iot-ingestion",
-  "version": "3.1.0",
-  "description": "High-performance RuuviTag MQTT ingestion service for InfluxDB",
+  "version": "3.2.0",
+  "description": "High-performance RuuviTag MQTT ingestion service for InfluxDB and/or MariaDB",
   "type": "module",
   "main": "dist/index.js",
   "engines": {

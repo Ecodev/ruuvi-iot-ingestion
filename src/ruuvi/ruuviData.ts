@@ -12,20 +12,6 @@ export class RuuviData {
   measurementSequenceNumber?: number;
   dataFormat?: number;
 
-  // Calculated derived fields
-  absoluteHumidity?: number;
-  equilibriumVaporPressure?: number;
-  airDensity?: number;
-  accelerationTotal?: number;
-  accelerationAngleFromX?: number;
-  accelerationAngleFromY?: number;
-  accelerationAngleFromZ?: number;
-  dewPoint?: number;
-  frostPoint?: number;
-  vaporPressureDeficit?: number;
-  // Batterie
-  batteryPercentage?: number;
-
   constructor(
     public coordinates: string,
     public deviceId: string,

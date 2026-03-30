@@ -15,25 +15,14 @@ function toPoint(data: RuuviData): Point {
   const fields: Record<string, number | undefined> = {
     temperature: data.temperature,
     humidity: data.humidity,
-    absoluteHumidity: data.absoluteHumidity,
     pressure: data.pressure,
-    equilibriumVaporPressure: data.equilibriumVaporPressure,
-    airDensity: data.airDensity,
     accX: data.accelerationX,
     accY: data.accelerationY,
     accZ: data.accelerationZ,
-    accelerationTotal: data.accelerationTotal,
-    accelerationAngleFromX: data.accelerationAngleFromX,
-    accelerationAngleFromY: data.accelerationAngleFromY,
-    accelerationAngleFromZ: data.accelerationAngleFromZ,
     batteryVoltage: data.batteryVoltage,
     txPower: data.txPower,
     movementCounter: data.movementCounter,
     measurementSequenceNumber: data.measurementSequenceNumber,
-    dewPoint: data.dewPoint,
-    frostPoint: data.frostPoint,
-    vaporPressureDeficit: data.vaporPressureDeficit,
-    batteryPercentage: data.batteryPercentage,
   };
   for (const [key, value] of Object.entries(fields)) {
     if (value != null) point.floatField(key, value);

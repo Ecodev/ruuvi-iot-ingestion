@@ -7,18 +7,6 @@ import { RuuviData } from '../ruuvi/ruuviData.js';
 import { writeBatch as influxWriteBatch } from '../influx-db/influxDbService.js';
 import { writeBatch as mariaWriteBatch } from '../maria-db/mariaDbService.js';
 import ruuviSchema from '../ruuvi/ruuviMqttDataWithTimestampsSchema.js';
-import {
-  absoluteHumidity,
-  accelerationAngles,
-  accelerationTotal,
-  airDensity,
-  batteryPercentage,
-  dewPoint,
-  equilibriumVaporPressure,
-  frostPoint,
-  vaporPressureDeficit,
-} from '../ruuvi/ruuviCalculations.js';
-
 // ----------------------
 // Metrics
 // ----------------------
@@ -129,36 +117,6 @@ export function startMqtt() {
       sample.movementCounter = data.movementCounter;
       sample.measurementSequenceNumber = data.measurementSequenceNumber;
       sample.dataFormat = data.dataFormat;
-
-      // Calculation of derived fields (once for both databases)
-      const { temperature, humidity, pressure, accelerationX, accelerationY, accelerationZ } = sample;
-
-      if (temperature !== undefined) {
-        sample.equilibriumVaporPressure = equilibriumVaporPressure(temperature);
-
-        if (humidity !== undefined) {
-          sample.absoluteHumidity = absoluteHumidity(temperature, humidity);
-          sample.dewPoint = dewPoint(temperature, humidity);
-          sample.frostPoint = frostPoint(temperature, humidity);
-          sample.vaporPressureDeficit = vaporPressureDeficit(temperature, humidity);
-
-          if (pressure !== undefined) {
-            sample.airDensity = airDensity(temperature, pressure, humidity);
-          }
-        }
-      }
-
-      if (accelerationX !== undefined && accelerationY !== undefined && accelerationZ !== undefined) {
-        sample.accelerationTotal = accelerationTotal(accelerationX, accelerationY, accelerationZ);
-        const angles = accelerationAngles(accelerationX, accelerationY, accelerationZ);
-        sample.accelerationAngleFromX = angles.angleFromX;
-        sample.accelerationAngleFromY = angles.angleFromY;
-        sample.accelerationAngleFromZ = angles.angleFromZ;
-      }
-
-      if (sample.batteryVoltage !== undefined) {
-        sample.batteryPercentage = batteryPercentage(sample.batteryVoltage);
-      }
 
       influxBuffer?.push(sample);
       mariaBuffer?.push(sample);
