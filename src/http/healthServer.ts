@@ -101,14 +101,14 @@ async function handleGwCfg(req: FastifyRequest, reply: FastifyReply) {
 
     if (cfgPath === path.join(GW_CONFIG_DIR, 'gw_cfg.json')) {
       const macPath = resolveCfgPath(mac);
-      if (macPath && await fileExists(macPath)) {
+      if (macPath && (await fileExists(macPath))) {
         cfgPath = macPath;
         logger.info({ mac, cfgPath }, 'Config resolved by MAC');
       }
     }
   } else if (urlName) {
     const namePath = resolveCfgPath(urlName);
-    if (namePath && await fileExists(namePath)) {
+    if (namePath && (await fileExists(namePath))) {
       cfgPath = namePath;
       logger.info({ urlName, cfgPath }, 'Config resolved by URL name');
     } else if (!namePath) {
@@ -116,7 +116,7 @@ async function handleGwCfg(req: FastifyRequest, reply: FastifyReply) {
     }
   }
 
-  if (!await fileExists(cfgPath)) {
+  if (!(await fileExists(cfgPath))) {
     logger.error({ cfgPath }, 'Config file not found');
     return reply.code(404).send({ error: 'Config not found' });
   }
@@ -177,9 +177,9 @@ export async function startHttpServer() {
   });
 
   // Both routes point to the same handler, which will resolve the config based on headers or URL
-  fastify.get('/ruuvi-gw-cfg',{
+  fastify.get('/ruuvi-gw-cfg', {
     config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
-   handler: handleGwCfg,
+    handler: handleGwCfg,
   });
   fastify.get('/ruuvi-gw-cfg/*', {
     config: { rateLimit: { max: 100, timeWindow: '1 minute' } },

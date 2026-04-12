@@ -221,7 +221,6 @@ export function startMariaMaintenanceTasks(): void {
 
   logger.info(
     { intervalHours: config.mariaRetention.maintenanceIntervalHours },
-    'MariaDB maintenance scheduler started - first run in ' +
-    config.mariaRetention.maintenanceIntervalHours + 'h',
+    'MariaDB maintenance scheduler started - first run in ' + config.mariaRetention.maintenanceIntervalHours + 'h',
   );
 }
