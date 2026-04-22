@@ -1,7 +1,8 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MessageBuffer } from '../pipeline/messageBuffer.js';
 
 // Mock for testing
-const mockFlushFn = jest.fn();
+const mockFlushFn = vi.fn();
 
 describe('MessageBuffer', () => {
   beforeEach(() => {
