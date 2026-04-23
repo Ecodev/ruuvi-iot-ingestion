@@ -154,6 +154,10 @@ SELECT m.id,
        -- Ideal greenhouse conditions: 0.8–1.2 kPa
        (611.2 * EXP((17.625 * m.temperature) / (243.04 + m.temperature)) * (1 - m.humidity / 100)) / 1000  AS vapor_pressure_deficit,
 
+       -- Temperature in Fahrenheit
+         m.temperature * 9 / 5 + 32                                                                      AS temperature_fahrenheit,
+       -- Temperature in Kelvin
+         m.temperature + 273.15                                                                          AS temperature_kelvin,
        -- Dew point (°C) — Magnus's formula
        -- Valid for T ≥ 0°C
        CASE
