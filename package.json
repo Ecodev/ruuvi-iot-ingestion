@@ -18,7 +18,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.0.1",
   "dependencies": {
     "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.3.0",
