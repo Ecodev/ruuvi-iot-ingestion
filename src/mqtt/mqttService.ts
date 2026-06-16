@@ -4,44 +4,31 @@ import { config } from '../config/env.js';
 import { logger } from '../logger/logger.js';
 import { MessageBuffer } from '../pipeline/messageBuffer.js';
 import { RuuviData } from '../ruuvi/ruuviData.js';
-import { writeBatch as influxWriteBatch } from '../influx-db/influxDbService.js';
 import { writeBatch as mariaWriteBatch } from '../maria-db/mariaDbService.js';
 import ruuviSchema from '../ruuvi/ruuviMqttDataWithTimestampsSchema.js';
 // ----------------------
 // Metrics
 // ----------------------
-// MQTT connection status metrics
 const mqttConnected = new Gauge({
   name: 'ruuvi_mqtt_connected',
   help: 'MQTT connection status (1=connected, 0=disconnected)',
 });
-//  Counters for processed messages
 const mqttMessagesProcessed = new Counter({
   name: 'ruuvi_mqtt_messages_processed_total',
   help: 'Total MQTT messages processed successfully',
 });
-// Counters for invalid messages
 const mqttMessagesInvalid = new Counter({
   name: 'ruuvi_mqtt_messages_invalid_total',
   help: 'Total invalid MQTT messages',
 });
 
 // ----------------------
-// Buffers
+// Buffer
 // ----------------------
-const influxBuffer =
-  config.storageBackend !== 'mariadb'
-    ? new MessageBuffer<RuuviData>(config.bufferSize, influxWriteBatch, 'influx')
-    : null;
-
-const mariaBuffer =
-  config.storageBackend !== 'influxdb'
-    ? new MessageBuffer<RuuviData>(config.mariaBufferSize, mariaWriteBatch, 'maria')
-    : null;
+const mariaBuffer = new MessageBuffer<RuuviData>(config.mariaBufferSize, mariaWriteBatch, 'maria');
 
 setInterval(() => {
-  influxBuffer?.flush();
-  mariaBuffer?.flush();
+  mariaBuffer.flush();
 }, config.flushInterval);
 
 // ----------------------
@@ -92,7 +79,6 @@ export function startMqtt() {
       const tagName = config.tagNames[tagMac] ?? tagMac;
       const timestamp = (Number(data.ts ?? data.gwts) + config.mqtt.timestampOffsetSeconds) * 1000;
 
-      // ── Construction RuuviData depuis les champs décodés du gateway ──
       const sample = new RuuviData(
         data.coords ?? '',
         tagMac,
@@ -118,8 +104,7 @@ export function startMqtt() {
       sample.measurementSequenceNumber = data.measurementSequenceNumber;
       sample.dataFormat = data.dataFormat;
 
-      influxBuffer?.push(sample);
-      mariaBuffer?.push(sample);
+      mariaBuffer.push(sample);
       mqttMessagesProcessed.inc();
     } catch (err) {
       logger.warn({ err, topic }, 'MQTT message processing failed');

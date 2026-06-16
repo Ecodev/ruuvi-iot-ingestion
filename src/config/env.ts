@@ -36,13 +36,6 @@ const configSchema = z.object({
     rejectUnauthorized: z.boolean(),
     timestampOffsetSeconds: z.number(),
   }),
-  storageBackend: z.enum(['influxdb', 'mariadb', 'both']),
-  influx: z.object({
-    url: z.string().url(),
-    org: z.string().min(1),
-    bucket: z.string().min(1),
-    token: z.string().min(1),
-  }),
   maria: z.object({
     host: z.string(),
     port: z.number(),
@@ -59,7 +52,6 @@ const configSchema = z.object({
     maintenanceIntervalHours: z.number(),
   }),
   mariaBufferSize: z.number(),
-  bufferSize: z.number(),
   flushInterval: z.number(),
   httpPort: z.number(),
   companyCode: z.number(),
@@ -87,13 +79,6 @@ export const config = configSchema.parse({
     rejectUnauthorized: toBoolean(process.env.MQTT_REJECT_UNAUTHORIZED),
     timestampOffsetSeconds: Number(process.env.MQTT_TIMESTAMP_OFFSET_SECONDS ?? 0),
   },
-  storageBackend: (process.env.STORAGE_BACKEND ?? 'both') as 'influxdb' | 'mariadb' | 'both',
-  influx: {
-    url: process.env.INFLUX_URL!,
-    org: process.env.INFLUX_ORG!,
-    bucket: process.env.INFLUX_BUCKET!,
-    token: process.env.INFLUX_TOKEN!,
-  },
   maria: {
     host: process.env.MARIA_HOST ?? 'localhost',
     port: Number(process.env.MARIA_PORT ?? 3306),
@@ -110,7 +95,6 @@ export const config = configSchema.parse({
     maintenanceIntervalHours: Number(process.env.MARIA_MAINTENANCE_INTERVAL_HOURS ?? 6),
   },
   mariaBufferSize: Number(process.env.MARIA_BUFFER_SIZE ?? 100),
-  bufferSize: Number(process.env.BUFFER_SIZE ?? 500),
   flushInterval: Number(process.env.FLUSH_INTERVAL ?? 5000),
   httpPort: Number(process.env.HTTP_PORT ?? 3002),
   companyCode: Number(process.env.COMPANY_CODE ?? 1177),

@@ -59,9 +59,8 @@ temp/
  docker-data/
 *.local
 
-# Influx / MQTT debug dumps
+# MQTT debug dumps
 mqtt-dump/
-influx-dump/
 
 # Archives
 *.tgz

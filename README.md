@@ -1,6 +1,6 @@
 # ruuvi-iot-ingestion
 
-A high-performance Node.js/TypeScript backend service that collects sensor data from [RuuviTag](https://ruuvi.com/) Bluetooth sensors via a Ruuvi Gateway and MQTT, computes derived metrics, and stores them in InfluxDB and/or MariaDB.
+A high-performance Node.js/TypeScript backend service that collects sensor data from [RuuviTag](https://ruuvi.com/) Bluetooth sensors via a Ruuvi Gateway and MQTT, computes derived metrics, and stores them in MariaDB.
 
 ---
 
@@ -47,7 +47,6 @@ ruuvi-iot-ingestion (this service)
       │   • Derived metric calculation
       │   • Dual message buffer
       │
-      ├──► InfluxDB v2   (time-series, Grafana dashboards)
       └──► MariaDB       (SQL, HACCP reports, exports)
 ```
 
@@ -62,7 +61,7 @@ It also serves gateway configuration files over HTTPS, allowing each Ruuvi Gatew
 - **MQTT ingestion** — subscribes to `ruuvi/#` topics with TLS support and automatic reconnection
 - **Zod validation** — strict schema validation on every incoming payload, including the config itself at startup
 - **Derived metrics** — dew point, frost point, absolute humidity, VPD, air density, acceleration angles, battery percentage, and more (see [Stored metrics](#stored-metrics))
-- **Dual storage** — write to InfluxDB, MariaDB, or both simultaneously via a single env variable
+- **Storage** — write to MariaDB via a single env variable
 - **Batch writes** — configurable buffer size and flush interval for both databases
 - **Device name mapping** — map gateway and tag MAC addresses to human-readable names via `.env`
 - **Auto schema init** — MariaDB tables and views are created automatically on first start
@@ -81,7 +80,6 @@ It also serves gateway configuration files over HTTPS, allowing each Ruuvi Gatew
 - Node.js >= 24
 - pnpm >= 10
 - One or more [Ruuvi Gateways](https://ruuvi.com/gateway/) with MQTT support
-- InfluxDB v2 (if using InfluxDB storage)
 - MariaDB >= 10.6 (if using MariaDB storage)
 
 ---
@@ -117,13 +115,12 @@ Add a JSON file for each gateway, named after its MAC address without separators
 # Linux / macOS
 echo "GW_CFG_BEARER_TOKEN=$(openssl rand -hex 32)" >> config/.env
 echo "HTTP_API_KEY=$(openssl rand -hex 32)" >> config/.env
-echo "INFLUX_TOKEN=$(openssl rand -hex 32)" >> config/.env
 
 # PowerShell (Windows)
 [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
 ```
 
-5. Edit `config/.env` and fill in your MQTT, InfluxDB, and MariaDB connection details.
+5. Edit `config/.env` and fill in your MQTT and MariaDB connection details.
 
 ---
 
@@ -146,15 +143,6 @@ All configuration is done via environment variables in `config/.env`. The entire
 | `MQTT_KEY` | — | Path to client key (TLS) |
 | `MQTT_REJECT_UNAUTHORIZED` | `true` | Reject invalid TLS certificates |
 
-### InfluxDB
-
-| Variable | Default | Description |
-|---|---|---|
-| `INFLUX_URL` | — | InfluxDB URL — must include the scheme, e.g. `http://localhost:8086` |
-| `INFLUX_TOKEN` | — | InfluxDB API token |
-| `INFLUX_ORG` | — | InfluxDB organisation name |
-| `INFLUX_BUCKET` | — | InfluxDB bucket name |
-
 ### MariaDB
 
 | Variable | Default | Description |
@@ -165,17 +153,10 @@ All configuration is done via environment variables in `config/.env`. The entire
 | `MARIA_PASSWORD` | — | Database password |
 | `MARIA_DATABASE` | `ruuvi` | Database name |
 
-### Storage backend
-
-| Variable | Default | Description |
-|---|---|---|
-| `STORAGE_BACKEND` | `both` | `influxdb` \| `mariadb` \| `both` |
-
 ### Buffering
 
 | Variable | Default | Description |
 |---|---|---|
-| `BUFFER_SIZE` | `500` | Max points before an InfluxDB flush is triggered |
 | `MARIA_BUFFER_SIZE` | `100` | Max rows before a MariaDB flush is triggered |
 | `FLUSH_INTERVAL` | `5000` | Periodic flush interval in milliseconds |
 
@@ -189,7 +170,7 @@ All configuration is done via environment variables in `config/.env`. The entire
 | `GW_CFG_PASSWORD` | — | Password for Basic auth on `/ruuvi-gw-cfg` |
 | `GW_CFG_BEARER_TOKEN` | — | Bearer token for `/ruuvi-gw-cfg` (alternative to Basic auth) |
 
-`HTTP_API_KEY`, `GW_CFG_PASSWORD`, and `INFLUX_TOKEN` are independent credentials. Each can be rotated separately without affecting the others.
+`HTTP_API_KEY` and `GW_CFG_PASSWORD` are independent credentials. Each can be rotated separately without affecting the others.
 
 ### Device name mapping
 
@@ -306,7 +287,7 @@ Each MQTT message goes through the following stages before being written to the 
 3. **Device resolution** — gateway and tag MAC addresses are resolved to human-readable names
 4. **Metric mapping** — decoded fields from the gateway payload are mapped to a `RuuviData` object
 5. **Derived metric calculation** — computed fields are added once, shared by both storage backends
-6. **Buffering** — the enriched `RuuviData` object is pushed to the InfluxDB buffer, the MariaDB buffer, or both, depending on `STORAGE_BACKEND`
+6. **Buffering** — the enriched `RuuviData` object is pushed to the MariaDB buffer.
 7. **Batch write** — buffers are flushed either when they reach their size limit or on the periodic flush interval
 
 ---
@@ -346,7 +327,7 @@ Each MQTT message goes through the following stages before being written to the 
 
 ## MariaDB retention & downsampling
 
-When `STORAGE_BACKEND` is `mariadb` or `both`, two optional maintenance tasks run on a configurable schedule.
+For `mariadb` two optional maintenance tasks run on a configurable schedule.
 
 ### Retention
 
@@ -491,7 +472,6 @@ The `/metrics` endpoint exposes the following custom metrics in addition to the 
 | `ruuvi_mqtt_connected` | Gauge | MQTT connection status (`1` = connected, `0` = disconnected) |
 | `ruuvi_mqtt_messages_processed_total` | Counter | Total MQTT messages processed successfully |
 | `ruuvi_mqtt_messages_invalid_total` | Counter | Total invalid MQTT messages rejected by Zod |
-| `ruuvi_buffer_size{type="influx"}` | Gauge | Current InfluxDB buffer fill level |
 | `ruuvi_buffer_size{type="maria"}` | Gauge | Current MariaDB buffer fill level |
 
 ### Scraping with Prometheus
@@ -677,7 +657,6 @@ docker compose down -v
 |---|---|---|
 | `ruuvi-iot-ingestion` | `3002` | Health, metrics, and gateway config HTTP server |
 | `mosquitto` | `1883`, `9001` | MQTT broker |
-| `influxdb` | `8086` | InfluxDB UI & API |
 | `mariadb` | `3306` | MariaDB |
 
 ### Build and run the image standalone
@@ -691,11 +670,6 @@ docker run -d \
   -v $(pwd)/config:/app/config \
   -e MQTT_HOST=mosquitto \
   -e MQTT_PORT=1883 \
-  -e STORAGE_BACKEND=both \
-  -e INFLUX_URL=http://influxdb:8086 \
-  -e INFLUX_ORG=myorg \
-  -e INFLUX_BUCKET=ruuvi \
-  -e INFLUX_TOKEN=mytoken \
   -e MARIA_HOST=mariadb \
   -e MARIA_USER=ruuvi \
   -e MARIA_PASSWORD=ruuvi_pass \
@@ -717,7 +691,7 @@ docker run -d \
 - [ ] All secrets stored in a secrets manager or environment injection (never committed to git)
 - [ ] `HTTP_API_KEY` generated with `openssl rand -hex 32`
 - [ ] `GW_CFG_BEARER_TOKEN` generated with `openssl rand -hex 32`
-- [ ] TLS configured for MQTT (`mqtts`) and InfluxDB (`https`)
+- [ ] TLS configured for MQTT (`mqtts`).
 - [ ] `MQTT_REJECT_UNAUTHORIZED=true`
 - [ ] `config/gw_cfg/` contains a JSON file for each gateway
 - [ ] Database backups scheduled
@@ -729,7 +703,6 @@ docker run -d \
 ### Performance tuning for high load
 
 ```env
-BUFFER_SIZE=2000
 MARIA_BUFFER_SIZE=1000
 FLUSH_INTERVAL=3000
 ```
@@ -833,8 +806,6 @@ spec:
     │   └── env.ts                 Environment variable parsing & Zod validation
     ├── http/
     │   └── healthServer.ts        Fastify server — /health, /metrics, /ruuvi-gw-cfg
-    ├── influx-db/
-    │   └── influxDbService.ts     InfluxDB write client
     ├── logger/
     │   └── logger.ts              Pino logger
     ├── maria-db/
@@ -851,7 +822,6 @@ spec:
     │   ├── ruuviMqttDataWithTimestampsSchema.ts  Zod schema for MQTT payloads
     │   └── gatewayConfigurationSchema.ts         Zod schema for gateway config files
     ├── tests/
-    │   ├── messageBuffer.test.ts
     │   └── ruuviCalculations.test.ts
     └── types/
         └── advlib-ble-manufacturers.d.ts
@@ -882,10 +852,8 @@ kubectl logs -f deployment/ruuvi-iot-ingestion
 
 ## Optimizations
 
-- Increase `BUFFER_SIZE` to reduce the number of InfluxDB write operations under high message volume
 - Adjust `FLUSH_INTERVAL` to match your tag reporting interval (e.g. `30000` for 30 s reporting)
 - Use a local MQTT broker (Mosquitto is included in `docker-compose.yml`) to reduce network latency
-- Set `STORAGE_BACKEND=influxdb` if you do not need SQL exports, to skip unnecessary MariaDB writes
 - Set `MARIA_DOWNSAMPLE_DELETE_RAW=true` to keep the `measurements` table small and fast
 
 ---
@@ -898,18 +866,6 @@ The service refuses to start if `HTTP_API_KEY` is missing. Generate one and add 
 
 ```bash
 openssl rand -hex 32
-```
-
-### `INFLUX_URL` invalid format
-
-The URL must include the scheme:
-
-```env
-# correct
-INFLUX_URL=http://localhost:8086
-
-# incorrect — missing http://
-INFLUX_URL=localhost:8086
 ```
 
 ### Gateway config returns 502

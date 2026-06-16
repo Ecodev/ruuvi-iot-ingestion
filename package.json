@@ -1,7 +1,7 @@
 {
   "name": "ruuvi-iot-ingestion",
   "version": "3.2.0",
-  "description": "High-performance RuuviTag MQTT ingestion service for InfluxDB and/or MariaDB",
+  "description": "High-performance RuuviTag MQTT ingestion service for MariaDB",
   "type": "module",
   "main": "dist/index.js",
   "engines": {
@@ -22,7 +22,6 @@
   "dependencies": {
     "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.3.0",
-    "@influxdata/influxdb-client": "^1.35.0",
     "advlib-ble-manufacturers": "^1.15.2",
     "dotenv": "^16.6.1",
     "fastify": "^5.8.2",

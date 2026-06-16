@@ -4,21 +4,24 @@ import { logger } from './logger/logger.js';
 import { initMariaSchema } from './maria-db/mariaDbService.js';
 import { config } from './config/env.js';
 import { startMariaMaintenanceTasks } from './maria-db/mariaDbRetention.js';
+
 async function main() {
-  if (config.storageBackend !== 'influxdb') {
-    await initMariaSchema();
-    // Maintenance schedule and tasks only if at least one option is enabled
-    if (config.mariaRetention.downsampleEnabled || config.mariaRetention.enabled) {
-      startMariaMaintenanceTasks();
-    }
+  await initMariaSchema();
+
+  if (config.mariaRetention.downsampleEnabled || config.mariaRetention.enabled) {
+    startMariaMaintenanceTasks();
   }
+
   await startHttpServer();
   startMqtt();
-  logger.info(`Ruuvi ingestion service started — storage: ${config.storageBackend}`);
+  logger.info('Ruuvi ingestion service started');
 }
+
 main();
+
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
 async function shutdown() {
   logger.info('Shutting down service...');
   process.exit(0);

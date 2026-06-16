@@ -15,15 +15,6 @@ services:
       MQTT_USERNAME: ""
       MQTT_PASSWORD: ""
 
-      # Storage Backend (influxdb | mariadb | both)
-      STORAGE_BACKEND: both
-
-      # InfluxDB Configuration
-      INFLUX_URL: http://influxdb:8086
-      INFLUX_ORG: myorg
-      INFLUX_BUCKET: ruuvi
-      INFLUX_TOKEN: mytoken
-
       # MariaDB Configuration
       MARIA_HOST: mariadb
       MARIA_PORT: 3306
@@ -40,7 +31,6 @@ services:
       MARIA_MAINTENANCE_INTERVAL_HOURS: 6
 
       # Buffer Configuration
-      BUFFER_SIZE: 500
       MARIA_BUFFER_SIZE: 100
       FLUSH_INTERVAL: 5000
 
@@ -58,7 +48,6 @@ services:
 
     depends_on:
       - mosquitto
-      - influxdb
       - mariadb
 
     networks:
@@ -86,26 +75,6 @@ services:
       - ruuvi-network
     restart: unless-stopped
 
-  influxdb:
-    image: influxdb:latest
-    container_name: influxdb
-    environment:
-      INFLUXDB_DB: ruuvi
-      INFLUXDB_ADMIN_USER: admin
-      INFLUXDB_ADMIN_PASSWORD: admin
-      INFLUXDB_ADMIN_ENABLED: "true"
-      INFLUXDB_ORGANIZATION: myorg
-      INFLUXDB_BUCKET: ruuvi
-      INFLUXDB_RETENTION: 30d
-      INFLUXDB_TOKEN: mytoken
-    ports:
-      - "8086:8086"
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-    networks:
-      - ruuvi-network
-    restart: unless-stopped
-
   mariadb:
     image: mariadb:latest
     container_name: mariadb
@@ -126,10 +95,8 @@ services:
 volumes:
   mosquitto_data:
   mosquitto_logs:
-  influxdb_data:
   mariadb_data:
 
 networks:
   ruuvi-network:
     driver: bridge
-
