@@ -1,9 +1,9 @@
 import { getMariaPool } from './mariaDbService.js';
-import { config } from '../config/env.js';
+import { getSettings, Settings } from './settingsService.js';
 import { logger } from '../logger/logger.js';
 
 // ── Downsampling: hourly aggregation ───
-async function runDownsample(): Promise<void> {
+async function runDownsample(deleteRaw: boolean): Promise<void> {
   const conn = await getMariaPool().getConnection();
   try {
     // We aggregate the full hours that are not yet present in `measurements_hourly`
@@ -26,8 +26,8 @@ async function runDownsample(): Promise<void> {
                                        vapor_pressure_deficit, vapor_pressure_deficit_min, vapor_pressure_deficit_max,
                                        battery_percentage)
       SELECT DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00')                    AS ts_hour,
-             sensor_fk,
-             gateway_fk,
+             mc.sensor_fk,
+             mc.gateway_fk,
              COUNT(*)                                                   AS sample_count,
              -- Rssi
              AVG(mc.rssi)                                               AS rssi,
@@ -85,9 +85,9 @@ async function runDownsample(): Promise<void> {
              ROUND(AVG(mc.battery_percentage), 3)                       AS battery_percentage
       FROM measurements_calculated mc
       LEFT JOIN measurements_hourly mh
-           ON mh.sensor_fk = mc.sensor_fk
-           AND mh.gateway_fk = mc.gateway_fk
-           AND mh.ts_hour = DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00')
+        ON mh.sensor_fk = mc.sensor_fk
+        AND mh.gateway_fk = mc.gateway_fk
+        AND mh.ts_hour = DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00')
       WHERE mc.ts < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
         AND mh.id IS NULL
       GROUP BY DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00'), mc.sensor_fk, mc.gateway_fk
@@ -135,7 +135,7 @@ async function runDownsample(): Promise<void> {
     }
 
     // Delete aggregated raw data if enabled
-    if (config.mariaRetention.downsampleDeleteRaw) {
+    if (deleteRaw) {
       const [del] = (await conn.query(`
         DELETE FROM measurements
         WHERE ts < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
@@ -157,44 +157,39 @@ async function runDownsample(): Promise<void> {
 }
 
 // ── Data retention: deletion of data that is too old ──
-async function runRetention(): Promise<void> {
+async function runRetention(settings: Settings): Promise<void> {
   const conn = await getMariaPool().getConnection();
   try {
-    // Raw data
-    if (config.mariaRetention.enabled) {
+    if (settings.mariaRetentionEnabled) {
       const [raw] = (await conn.query(
         `
         DELETE FROM measurements
         WHERE ts < NOW() - INTERVAL ? DAY
         LIMIT 5000
       `,
-        [config.mariaRetention.retentionDays],
+        [settings.mariaRetentionEnabled],
       )) as any;
 
       const deleted = raw?.affectedRows ?? 0;
       if (deleted > 0) {
-        logger.info(
-          { rows: deleted, days: config.mariaRetention.retentionDays },
-          'MariaDB retention: raw rows deleted',
-        );
+        logger.info({ rows: deleted, days: settings.mariaRetentionDays }, 'MariaDB retention: raw rows deleted');
       }
     }
 
-    // Downsampled data
-    if (config.mariaRetention.downsampleEnabled && config.mariaRetention.downsampleRetentionDays > 0) {
+    if (settings.mariaDownsampleEnabled && settings.mariaDownsampleRetentionDays > 0) {
       const [hourly] = (await conn.query(
         `
         DELETE FROM measurements_hourly
         WHERE ts_hour < NOW() - INTERVAL ? DAY
         LIMIT 5000
       `,
-        [config.mariaRetention.downsampleRetentionDays],
+        [settings.mariaDownsampleRetentionDays],
       )) as any;
 
       const deleted = hourly?.affectedRows ?? 0;
       if (deleted > 0) {
         logger.info(
-          { rows: deleted, days: config.mariaRetention.downsampleRetentionDays },
+          { rows: deleted, days: settings.mariaDownsampleRetentionDays },
           'MariaDB retention: hourly rows deleted',
         );
       }
@@ -206,21 +201,29 @@ async function runRetention(): Promise<void> {
   }
 }
 
-// ── Scheduler ──
+// ── Scheduler — always runs; reads policy from settings on every tick,
+// so toggling retention/downsampling in DB takes effect without a restart
 export function startMariaMaintenanceTasks(): void {
-  const intervalMs = config.mariaRetention.maintenanceIntervalHours * 60 * 60 * 1000;
+  const FALLBACK_INTERVAL_MS = 60 * 60 * 1000; // used only if settings can't be loaded
 
-  // Run immediately on startup, then every X hours
   const run = async () => {
-    logger.info('MariaDB maintenance tasks starting...');
-    if (config.mariaRetention.downsampleEnabled) await runDownsample();
-    if (config.mariaRetention.enabled) await runRetention();
-    logger.info('MariaDB maintenance tasks done');
-  };
-  setInterval(run, intervalMs);
+    let settings: Settings;
+    try {
+      settings = await getSettings();
+    } catch (err) {
+      logger.error({ err }, 'Failed to load app_settings - retrying in 1h');
+      setTimeout(run, FALLBACK_INTERVAL_MS);
+      return;
+    }
 
-  logger.info(
-    { intervalHours: config.mariaRetention.maintenanceIntervalHours },
-    'MariaDB maintenance scheduler started - first run in ' + config.mariaRetention.maintenanceIntervalHours + 'h',
-  );
+    logger.info('MariaDB maintenance tasks starting...');
+    if (settings.mariaDownsampleEnabled) await runDownsample(settings.mariaDownsampleDeleteRaw);
+    if (settings.mariaRetentionEnabled) await runRetention(settings);
+    logger.info('MariaDB maintenance tasks done');
+
+    setTimeout(run, settings.mariaMaintenanceIntervalHours * 60 * 60 * 1000);
+  };
+
+  setTimeout(run, FALLBACK_INTERVAL_MS);
+  logger.info('MariaDB maintenance scheduler started — policy read from app_settings on each run');
 }

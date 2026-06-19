@@ -215,6 +215,27 @@ CREATE TABLE IF NOT EXISTS measurements_hourly
     COMMENT ='RuuviTag data aggregated by the hour';
 
 -- ─────────────────────────────────────────────────────────────
+-- Application settings — single-row table, editable at runtime
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS settings
+(
+    id                                TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
+    maria_retention_enabled          BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Enable automatic retention of raw data',
+    maria_retention_days             SMALLINT UNSIGNED NOT NULL DEFAULT 730 COMMENT 'Retention period for raw data (days) - example: 730 days = 2 years',
+    maria_downsample_enabled         BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Enable hourly downsampling',
+    maria_downsample_retention_days  SMALLINT UNSIGNED NOT NULL DEFAULT 2190 COMMENT 'Retention period for downsampled data (days example: 2190 = 6 years, 0 = infinity)',
+    maria_downsample_delete_raw      BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Delete the raw data that has already been downsampled',
+    maria_maintenance_interval_hours TINYINT UNSIGNED NOT NULL DEFAULT 24 COMMENT 'Task execution interval (cron-like, in hours)',
+    updated_at                       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+        ON UPDATE CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT chk_app_settings_single_row CHECK (id = 1)
+) ENGINE = InnoDB
+    COMMENT ='Single-row table for runtime-tunable application settings (edit directly via SQL)';
+
+INSERT IGNORE INTO settings (id) VALUES (1);
+
+-- ─────────────────────────────────────────────────────────────
 -- View: all metrics with calculated fields
 -- ─────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW measurements_calculated AS
