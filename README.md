@@ -818,13 +818,10 @@ spec:
     ├── ruuvi/
     │   ├── ruuviCalculations.ts   Derived metric formulas
     │   ├── ruuviData.ts           RuuviData model class
-    │   ├── ruuviDecoder.ts        BLE manufacturer data decoder
     │   ├── ruuviMqttDataWithTimestampsSchema.ts  Zod schema for MQTT payloads
     │   └── gatewayConfigurationSchema.ts         Zod schema for gateway config files
     ├── tests/
     │   └── ruuviCalculations.test.ts
-    └── types/
-        └── advlib-ble-manufacturers.d.ts
 ```
 
 ---
