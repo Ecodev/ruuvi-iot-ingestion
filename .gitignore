@@ -66,4 +66,3 @@ mqtt-dump/
 *.tgz
 *.tar
 *.zip
-/config/gw_cfg
