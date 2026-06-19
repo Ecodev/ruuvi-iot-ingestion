@@ -77,13 +77,13 @@ async function resolveSensorFk(conn: PoolConnection, d: RuuviData, gatewayFk: nu
   }
 
   await conn.query(
-    `INSERT INTO sensors (sensor_id, sensor_name, gateway_fk, last_seen)
+    `INSERT INTO sensors (sensor_mac, sensor_name, gateway_fk, last_seen)
      VALUES (?, ?, ?, NOW(3))
      ON DUPLICATE KEY UPDATE gateway_fk = VALUES(gateway_fk), last_seen = NOW(3)`,
     [d.sensorId, d.sensorName, gatewayFk],
   );
 
-  const [[row]] = await conn.query<any[]>(`SELECT id FROM sensors WHERE sensor_id = ?`, [d.sensorId]);
+  const [[row]] = await conn.query<any[]>(`SELECT id FROM sensors WHERE sensor_mac = ?`, [d.sensorId]);
   sensorCache.set(d.sensorId, row.id);
   return row.id;
 }

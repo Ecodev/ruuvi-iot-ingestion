@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS sensors
             ON DELETE SET NULL
             ON UPDATE CASCADE,
 
-    INDEX idx_sensor_id (sensor_mac) COMMENT 'Index on sensor MAC address',
+    INDEX idx_sensor_mac (sensor_mac) COMMENT 'Index on sensor MAC address',
     INDEX idx_sensor_name (sensor_name) COMMENT 'Index on sensor name',
     INDEX idx_gateway_fk (gateway_fk) COMMENT 'Index on gateway foreign key for faster lookups of sensors by gateway'
 ) ENGINE = InnoDB
