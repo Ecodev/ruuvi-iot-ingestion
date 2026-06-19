@@ -9,7 +9,7 @@ async function runDownsample(): Promise<void> {
     // We aggregate the full hours that are not yet present in `measurements_hourly`
     //  DATE_FORMAT rounds to the nearest hour
     const [result] = (await conn.query(`
-      INSERT INTO measurements_hourly (ts_hour, device_fk, sample_count,
+      INSERT INTO measurements_hourly (ts_hour, sensor_fk, gateway_fk, sample_count,
                                        rssi, rssi_min, rssi_max,
                                        temperature, temperature_min, temperature_max,
                                        humidity, humidity_min, humidity_max,
@@ -26,7 +26,8 @@ async function runDownsample(): Promise<void> {
                                        vapor_pressure_deficit, vapor_pressure_deficit_min, vapor_pressure_deficit_max,
                                        battery_percentage)
       SELECT DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00')                    AS ts_hour,
-             mc.device_fk,
+             sensor_fk,
+             gateway_fk,
              COUNT(*)                                                   AS sample_count,
              -- Rssi
              AVG(mc.rssi)                                               AS rssi,
@@ -83,14 +84,13 @@ async function runDownsample(): Promise<void> {
               -- Battery percentage
              ROUND(AVG(mc.battery_percentage), 3)                       AS battery_percentage
       FROM measurements_calculated mc
-      WHERE
-        -- Only full hours (not the current hour)
-        mc.ts < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
-        -- Only the hours that have not yet been added up
-        AND DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00') NOT IN (SELECT ts_hour
-                                                            FROM measurements_hourly
-                                                            WHERE device_fk = mc.device_fk)
-      GROUP BY DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00'), mc.device_fk
+      LEFT JOIN measurements_hourly mh
+           ON mh.sensor_fk = mc.sensor_fk
+           AND mh.gateway_fk = mc.gateway_fk
+           AND mh.ts_hour = DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00')
+      WHERE mc.ts < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+        AND mh.id IS NULL
+      GROUP BY DATE_FORMAT(mc.ts, '%Y-%m-%d %H:00:00'), mc.sensor_fk, mc.gateway_fk
       ON DUPLICATE KEY UPDATE sample_count    = VALUES(sample_count),
                               rssi            = VALUES(rssi),
                               rssi_min        = VALUES(rssi_min),

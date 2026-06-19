@@ -6,9 +6,9 @@ import path from 'path';
 import fs from 'fs';
 
 let pool: Pool;
-// Local cache: device_id + gateway_id → FK id
-// Avoids a SELECT query for every message
-const deviceCache = new Map<string, number>();
+const gatewayCache = new Map<string, number>(); // gatewayId → id
+const sensorCache = new Map<string, number>(); // sensorId → id
+
 export function getMariaPool(): Pool {
   if (!pool) {
     pool = mysql.createPool({
@@ -47,33 +47,50 @@ export async function initMariaSchema(): Promise<void> {
     conn.release();
   }
 }
-// Resolves or creates the entry in `devices`, using an in-memory cache
-async function resolveDeviceFk(conn: PoolConnection, d: RuuviData): Promise<number> {
-  const cacheKey = `${d.deviceId}::${d.gatewayId}`;
-  const cached = deviceCache.get(cacheKey);
+
+// Resolves or creates the gateway row — only sets defaults on INSERT,
+// never overwrites admin-edited config columns on existing rows.
+async function resolveGatewayFk(conn: PoolConnection, d: RuuviData): Promise<number> {
+  const cached = gatewayCache.get(d.gwMac);
   if (cached !== undefined) return cached;
 
-  // INSERT … ON DUPLICATE KEY UPDATE — idempotent
   await conn.query(
-    `INSERT INTO devices (device_id, device_name, gateway_id, gateway_name, last_seen)
-     VALUES (?, ?, ?, ?, NOW(3))
-     ON DUPLICATE KEY UPDATE
-       device_name  = VALUES(device_name),
-       gateway_name = VALUES(gateway_name),
-       last_seen    = NOW(3)`,
-    [d.deviceId, d.deviceName, d.gatewayId, d.gatewayName],
+    `INSERT INTO gateways (gateway_id, gateway_name, mqtt_server, last_seen)
+     VALUES (?, ?, ?, NOW(3))
+     ON DUPLICATE KEY UPDATE last_seen = NOW(3)`,
+    [d.gwMac, d.gatewayName, config.mqtt.host],
   );
 
-  const [[row]] = await conn.query<any[]>(`SELECT id FROM devices WHERE device_id = ? AND gateway_id = ?`, [
-    d.deviceId,
-    d.gatewayId,
-  ]);
-  deviceCache.set(cacheKey, row.id);
+  const [[row]] = await conn.query<any[]>(`SELECT id FROM gateways WHERE gateway_id = ?`, [d.gwMac]);
+  gatewayCache.set(d.gwMac, row.id);
   return row.id;
 }
+
+// Resolves or creates the sensor row — only sets defaults on INSERT,
+// only updates gateway_fk/last_seen on existing rows (never sensor_name).
+async function resolveSensorFk(conn: PoolConnection, d: RuuviData, gatewayFk: number): Promise<number> {
+  const cached = sensorCache.get(d.sensorId);
+  if (cached !== undefined) {
+    // Keep the live gateway association up to date without blocking
+    void conn.query(`UPDATE sensors SET gateway_fk = ?, last_seen = NOW(3) WHERE id = ?`, [gatewayFk, cached]);
+    return cached;
+  }
+
+  await conn.query(
+    `INSERT INTO sensors (sensor_id, sensor_name, gateway_fk, last_seen)
+     VALUES (?, ?, ?, NOW(3))
+     ON DUPLICATE KEY UPDATE gateway_fk = VALUES(gateway_fk), last_seen = NOW(3)`,
+    [d.sensorId, d.sensorName, gatewayFk],
+  );
+
+  const [[row]] = await conn.query<any[]>(`SELECT id FROM sensors WHERE sensor_id = ?`, [d.sensorId]);
+  sensorCache.set(d.sensorId, row.id);
+  return row.id;
+}
+
 const INSERT_SQL = `
     INSERT INTO measurements (
-        ts, device_fk, rssi,
+        ts, sensor_fk, gateway_fk , rssi,
         temperature, humidity, pressure,
         acceleration_x, acceleration_y, acceleration_z,
         battery_voltage, tx_power, movement_counter,
@@ -86,29 +103,38 @@ export async function writeBatch(samples: RuuviData[]): Promise<void> {
   let conn: PoolConnection | undefined;
   try {
     conn = await getMariaPool().getConnection();
-    // Resolving foreign keys (the cache prevents repeated SELECT queries)
-    const rows = await Promise.all(
-      samples.map(async (d) => {
-        const fk = await resolveDeviceFk(conn!, d);
-        const ts = new Date(d.timestamp).toISOString().replace('T', ' ').replace('Z', '');
-        return [
-          ts,
-          fk,
-          d.rssi ?? null,
-          d.temperature ?? null,
-          d.humidity ?? null,
-          d.pressure ?? null,
-          d.accelerationX ?? null,
-          d.accelerationY ?? null,
-          d.accelerationZ ?? null,
-          d.batteryVoltage ?? null,
-          d.txPower ?? null,
-          d.movementCounter ?? null,
-          d.measurementSequenceNumber ?? null,
-          d.dataFormat ?? null,
-        ];
-      }),
-    );
+
+    // Resolve unique gateways first (dedup to avoid contention)
+    const uniqueGateways = [...new Map(samples.map((d) => [d.gwMac, d])).values()];
+    const gatewayFkMap = new Map<string, number>();
+    for (const d of uniqueGateways) {
+      const fk = await resolveGatewayFk(conn, d);
+      gatewayFkMap.set(d.gwMac, fk);
+    }
+
+    const rows: any[] = [];
+    for (const d of samples) {
+      const gatewayFk = gatewayFkMap.get(d.gwMac)!;
+      const sensorFk = await resolveSensorFk(conn, d, gatewayFk);
+      const ts = new Date(d.timestamp).toISOString().replace('T', ' ').replace('Z', '');
+      rows.push([
+        ts,
+        sensorFk,
+        gatewayFk,
+        d.rssi ?? null,
+        d.temperature ?? null,
+        d.humidity ?? null,
+        d.pressure ?? null,
+        d.accelerationX ?? null,
+        d.accelerationY ?? null,
+        d.accelerationZ ?? null,
+        d.batteryVoltage ?? null,
+        d.txPower ?? null,
+        d.movementCounter ?? null,
+        d.measurementSequenceNumber ?? null,
+        d.dataFormat ?? null,
+      ]);
+    }
     await conn.query(INSERT_SQL, [rows]);
     logger.debug({ count: rows.length }, 'MariaDB batch written');
   } catch (err) {

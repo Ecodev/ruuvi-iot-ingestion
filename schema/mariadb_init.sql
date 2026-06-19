@@ -1,24 +1,114 @@
 -- ─────────────────────────────────────────────────────────────
--- Devices registry
+-- Gateways registry + configuration
 -- ─────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS devices
+CREATE TABLE IF NOT EXISTS gateways
 (
     id           SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    device_id    VARCHAR(17)  NOT NULL COMMENT 'MAC address of RuuviTag',
-    device_name  VARCHAR(100) NOT NULL COMMENT 'RuuviTag name (user-configurable)',
-    gateway_id   VARCHAR(17)  NOT NULL COMMENT 'MAC address of gateway',
-    gateway_name VARCHAR(100) NOT NULL COMMENT 'Gateway name (user-configurable)',
-    first_seen   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'When the device was first seen',
-    last_seen    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-        ON UPDATE CURRENT_TIMESTAMP(3) COMMENT 'When the device was last seen',
+    gw_mac   VARCHAR(17)  NOT NULL UNIQUE COMMENT 'MAC address of gateway (no separators, uppercase)',
+    gateway_name VARCHAR(100) NOT NULL COMMENT 'Gateway name (admin-configurable)',
+    first_seen   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the gateway was first seen',
+    last_seen    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the gateway was last seen'
+        ON UPDATE CURRENT_TIMESTAMP(3),
 
-    UNIQUE KEY uq_device_gateway (device_id, gateway_id),
-    INDEX idx_device_id (device_id),
-    INDEX idx_gateway_id (gateway_id),
-    INDEX idx_device_name (device_name),
-    INDEX idx_gateway_name (gateway_name)
+    -- Auth used to serve /ruuvi-gw-cfg to THIS gateway
+    gw_cfg_user         VARCHAR(100) DEFAULT NULL COMMENT 'Username for gateway to fetch its config (NULL = no auth)',
+    gw_cfg_password     VARCHAR(255) DEFAULT NULL COMMENT 'Password for gateway to fetch its config (NULL = no auth)',
+    gw_cfg_bearer_token VARCHAR(255) DEFAULT NULL   COMMENT 'Bearer token for gateway to fetch its config (NULL = no auth)',
+
+    -- remote_cfg_* are used when the gateway fetches its configuration from the cloud (instead of local DB)
+    remote_cfg_use                       BOOLEAN      NOT NULL DEFAULT TRUE,
+    remote_cfg_auth_type                 VARCHAR(10)  NOT NULL DEFAULT 'basic' COMMENT 'basic | bearer',
+    remote_cfg_refresh_interval_minutes  SMALLINT UNSIGNED NOT NULL DEFAULT 60 COMMENT 'Period for checking a new gateway configuration on the remote configuration server (in minutes)',
+
+    -- Network
+    use_eth           BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Whether the gateway should use WiFi if available',
+    eth_dhcp          BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'IP configuration mode (DHCP/manual) when connected via Ethernet',
+    wifi_sta_ssid     VARCHAR(100) DEFAULT '' COMMENT 'Wi-Fi SSID for station mode (empty = disabled)',
+    wifi_sta_password VARCHAR(100) DEFAULT '' COMMENT 'Wi-Fi password for station mode',
+
+    -- HTTP relay (Ruuvi cloud / custom)
+    use_http_ruuvi BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Enable HTTP relaying mode to Ruuvi cloud',
+    use_http       BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Enable HTTP relaying mode to a custom server',
+
+    -- MQTT (params pushed TO the physical gateway)
+    use_mqtt                       BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Enable MQTT relaying mode',
+    mqtt_disable_retained_messages BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Disable MQTT retained messages',
+    mqtt_transport                 VARCHAR(10)  NOT NULL DEFAULT 'SSL' COMMENT 'CP - MQTT over TCP, SSL - MQTT over SSL, WS - MQTT over WebSockets, WSS - MQTT over secure WebSockets',
+    mqtt_data_format               VARCHAR(30)  NOT NULL DEFAULT 'ruuvi_raw_and_decoded' COMMENT 'ruuvi_raw - raw data only, ruuvi_raw_and_decoded - raw and decoded data, ruuvi_decoded - decoded data only',
+    mqtt_server                    VARCHAR(255) NOT NULL COMMENT 'MQTT server address',
+    mqtt_port                      SMALLINT UNSIGNED NOT NULL DEFAULT 8883 COMMENT 'MQTT server port',
+    mqtt_sending_interval          SMALLINT UNSIGNED NOT NULL DEFAULT 60 COMMENT 'Interval for sending data to MQTT server (in seconds)',
+    mqtt_user                      VARCHAR(100) DEFAULT '' COMMENT 'User name for MQTT authentication',
+    mqtt_use_ssl_client_cert       BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Enable use of SSL client certificate for authentication on the MQTT server',
+    mqtt_use_ssl_server_cert       BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Enable use of SSL server certificate to authenticate the MQTT server',
+
+    -- LAN auth (gateway's own web UI)
+    lan_auth_type            VARCHAR(30)  NOT NULL DEFAULT 'lan_auth_ruuvi' COMMENT 'lan_auth_default'' - Ruuvi-authentication with username ''Admin'' and as a password the Unique ID is used (in format XX:XX:XX:XX:XX:XX:XX:XX) which is printed on the bottom of the Ruuvi Gateway. ''lan_auth_ruuvi'' - Ruuvi-authentication, login/password should be specified in ''lan_auth_user'' and ''lan_auth_pass''. ''lan_auth_deny'' - deny access from LAN. ''lan_auth_allow'' - allow access from LAN without a password. ''lan_auth_basic'' - HTTP basic authentication, login/password should be specified in ''lan_auth_user'' and ''lan_auth_pass''. ''lan_auth_digest'' - HTTP digest authentication, login/password should be specified in ''lan_auth_user'' and ''lan_auth_pass''.',
+    lan_auth_user             VARCHAR(100) DEFAULT 'ecoadmin' COMMENT 'Login for authentication when accessing from LAN',
+    lan_auth_api_key_use      BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Use API key (token) for HTTP bearer authentication for read-only access from LAN',
+    lan_auth_api_key          VARCHAR(255) DEFAULT NULL COMMENT 'API key (token) for HTTP bearer authentication for read-only access from LAN',
+    lan_auth_api_key_rw_use   BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Use API key (token) for HTTP bearer authentication for read/write access from LAN',
+    lan_auth_api_key_rw       VARCHAR(255) DEFAULT NULL COMMENT 'API key (token) for HTTP bearer authentication for read/write access from LAN',
+
+    -- Auto-update
+    auto_update_cycle            VARCHAR(20) NOT NULL DEFAULT 'regular' COMMENT 'regular'' - check for updates 1-2 times a day according to the schedule, install new versions only 2 weeks after release. ''beta'' - install new versions as soon as a new version is released. ''manual'' - do not check for firmware updates and do not install updates automatically',
+    auto_update_weekdays_bitmask TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Bit-mask for weekdays: bit 0 - Sunday, bit 1 - Monday, ..., bit 6 - Saturday',
+    auto_update_interval_from    TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Configure firmware auto-updating schedule: start time (local timezone)- 0 - 00:00, 1 - 01:00, 2 - 02:00, ..., 23 - 23:00',
+    auto_update_interval_to      TINYINT UNSIGNED NOT NULL DEFAULT 24 COMMENT 'Configure firmware auto-updating schedule: end time (local timezone) - 1 - 01:00, 2 - 02:00, ..., 24 - 24:00',
+    auto_update_tz_offset_hours  TINYINT     NOT NULL DEFAULT 2 COMMENT 'Configure firmware auto-updating schedule: local timezone offset (hours)',
+
+    -- NTP
+    ntp_use         BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'Enable time synchronization from NTP servers',
+    ntp_use_dhcp    BOOLEAN      NOT NULL DEFAULT FALSE COMMENT 'Use DHCP to get the list of NTP servers',
+    ntp_server1     VARCHAR(255) DEFAULT 'ntp.metas.ch' COMMENT 'Address of NTP server 1 (used only if ''ntp_use_dhcp'' is false).',
+    ntp_server2     VARCHAR(255) DEFAULT 'time.cloudflare.com' COMMENT 'Address of NTP server 2 (used only if ''ntp_use_dhcp'' is false).',
+    ntp_server3     VARCHAR(255) DEFAULT 'pool.ntp.org' COMMENT 'Address of NTP server 3 (used only if ''ntp_use_dhcp'' is false).',
+    ntp_server4     VARCHAR(255) DEFAULT 'time.ruuvi.com' COMMENT 'Address of NTP server 4 (used only if ''ntp_use_dhcp'' is false).',
+
+    -- BLE scanning
+    company_id              SMALLINT UNSIGNED NOT NULL DEFAULT 1177 COMMENT 'Company ID for filtering messages from Bluetooth-sensors.',
+    company_use_filtering   BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Enable filtering messages from Bluetooth sensors by company ID.',
+    scan_coded_phy          BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use coded PHY (long range)',
+    scan_1mbit_phy          BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use Use 1 MBit/s PHY',
+    scan_2mbit_phy          BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use 2 MBit/s PHY',
+    scan_extended_payload   BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use extended payload',
+    scan_channel_37         BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use channel 37',
+    scan_channel_38         BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use channel 38',
+    scan_channel_39         BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Configure Bluetooth scanning: Use channel 39',
+    scan_filter_allow_listed BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'If it''s true, only the sensors in the list will pass through the filter, other sensors will be filtered out. If it''s false, then all sensors will pass through the filter except those in the list.',
+    scan_filter_list        JSON    DEFAULT NULL COMMENT 'Type of filtering is set by scan_filter_allow_listed. If scan_filter_list is empty, then filtering is not active',
+
+    coordinates    VARCHAR(100) DEFAULT '' COMMENT 'GPS-coordinates of the Gateway',
+    fw_update_url  VARCHAR(255) DEFAULT 'https://network.ruuvi.com/firmwareupdate' COMMENT 'URL of firmware update server',
+
+    INDEX idx_gateway_id (gw_mac) COMMENT 'Index on gateway MAC address',
+    INDEX idx_gateway_name (gateway_name) COMMENT 'Index on gateway name'
 ) ENGINE = InnoDB
-    COMMENT ='RuuviTag and gateway registry';
+    COMMENT ='Ruuvi Gateway registry and remote configuration';
+
+-- ─────────────────────────────────────────────────────────────
+-- Sensors registry (RuuviTags)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sensors
+(
+    id          SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sensor_mac   VARCHAR(17)  NOT NULL UNIQUE COMMENT 'MAC address of RuuviTag',
+    sensor_name VARCHAR(100) NOT NULL COMMENT 'RuuviTag name (admin-configurable)',
+    gateway_fk  SMALLINT UNSIGNED DEFAULT NULL COMMENT 'Gateway that last relayed data for this sensor',
+    first_seen  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the sensor was first seen',
+    last_seen   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the sensor was last seen'
+        ON UPDATE CURRENT_TIMESTAMP(3),
+
+    CONSTRAINT fk_sensors_gateway
+        FOREIGN KEY (gateway_fk) REFERENCES gateways (id)
+            ON DELETE SET NULL
+            ON UPDATE CASCADE,
+
+    INDEX idx_sensor_id (sensor_mac) COMMENT 'Index on sensor MAC address',
+    INDEX idx_sensor_name (sensor_name) COMMENT 'Index on sensor name',
+    INDEX idx_gateway_fk (gateway_fk) COMMENT 'Index on gateway foreign key for faster lookups of sensors by gateway'
+) ENGINE = InnoDB
+    COMMENT ='RuuviTag sensor registry';
 
 -- ─────────────────────────────────────────────────────────────
 -- Main table: raw data only
@@ -27,7 +117,8 @@ CREATE TABLE IF NOT EXISTS measurements
 (
     id                          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ts                          DATETIME(3)       NOT NULL COMMENT 'Timestamp of the measurement (UTC)',
-    device_fk                   SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to devices table',
+    sensor_fk                   SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to sensors table',
+    gateway_fk                  SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to gateways table',
     rssi                        SMALLINT COMMENT 'Received Signal Strength Indicator (dBm)',
     temperature                 DECIMAL(7, 4) COMMENT '°C',
     humidity                    DECIMAL(7, 4) COMMENT '% relative humidity',
@@ -41,28 +132,33 @@ CREATE TABLE IF NOT EXISTS measurements
     measurement_sequence_number MEDIUMINT UNSIGNED COMMENT 'Increments on each measurement, resets on reboot',
     data_format                 TINYINT UNSIGNED COMMENT 'RuuviTag data format version',
 
-    CONSTRAINT fk_measurements_device
-        FOREIGN KEY (device_fk) REFERENCES devices (id)
+    CONSTRAINT fk_measurements_sensor
+        FOREIGN KEY (sensor_fk) REFERENCES sensors (id)
             ON DELETE RESTRICT
             ON UPDATE CASCADE,
-    INDEX idx_ts (ts),
-    INDEX idx_device (device_fk, ts),
-    INDEX idx_temp (temperature)
+    CONSTRAINT fk_measurements_gateway
+        FOREIGN KEY (gateway_fk) REFERENCES gateways (id)
+            ON DELETE RESTRICT
+            ON UPDATE CASCADE,
+    INDEX idx_ts (ts) COMMENT 'Index on timestamp',
+    INDEX idx_sensor (sensor_fk, ts) COMMENT 'Index on sensor foreign key and timestamp',
+    INDEX idx_gateway (gateway_fk, ts) COMMENT 'Index on gateway foreign key and timestamp',
+    INDEX idx_temp (temperature) COMMENT 'Index on temperature'
 ) ENGINE = InnoDB
   ROW_FORMAT = COMPRESSED
     COMMENT ='RuuviTag raw measurements';
 
 -- ─────────────────────────────────────────────────────────────
--- Downsample table - Table of hourly averages - same fields as measurements but with averages and min/max values for the hour
+-- Downsample table - hourly averages
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS measurements_hourly
 (
     id                         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ts_hour                    DATETIME          NOT NULL COMMENT 'Time rounded to the nearest hour (UTC)',
-    device_fk                  SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to devices table',
+    sensor_fk                  SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to sensors table',
+    gateway_fk                 SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to gateways table',
     sample_count               SMALLINT UNSIGNED NOT NULL COMMENT 'Number of aggregated measurements',
--- Averages of raw measurements
-    rssi                       DECIMAL(6, 2) COMMENT 'Average Received Signal Strength Indicator (dBm)',
+    rssi                       DECIMAL(6, 2) COMMENT 'Average RSSI (dBm)',
     rssi_min                   DECIMAL(6, 2) COMMENT 'Minimum RSSI during the hour (dBm)',
     rssi_max                   DECIMAL(6, 2) COMMENT 'Maximum RSSI during the hour (dBm)',
     temperature                DECIMAL(7, 4) COMMENT 'Average °C',
@@ -102,30 +198,34 @@ CREATE TABLE IF NOT EXISTS measurements_hourly
     vapor_pressure_deficit_max DECIMAL(8, 5) COMMENT 'Maximum vapor pressure deficit during the hour (kPa)',
     battery_percentage         DECIMAL(5, 2) COMMENT 'Average of battery percentage (%)',
 
-    CONSTRAINT fk_hourly_device
-        FOREIGN KEY (device_fk) REFERENCES devices (id)
+    CONSTRAINT fk_hourly_sensor
+        FOREIGN KEY (sensor_fk) REFERENCES sensors (id)
+            ON DELETE RESTRICT
+            ON UPDATE CASCADE,
+    CONSTRAINT fk_hourly_gateway
+        FOREIGN KEY (gateway_fk) REFERENCES gateways (id)
             ON DELETE RESTRICT
             ON UPDATE CASCADE,
 
-    UNIQUE KEY uq_device_hour (device_fk, ts_hour),
-    INDEX idx_hour (ts_hour),
-    INDEX idx_device_hour (device_fk, ts_hour)
+    UNIQUE KEY uq_sensor_gateway_hour (sensor_fk, gateway_fk, ts_hour) COMMENT 'Unique constraint to prevent duplicate hourly records for the same sensor and gateway',
+    INDEX idx_hour (ts_hour) COMMENT 'Index on hourly timestamp',
+    INDEX idx_sensor_hour (sensor_fk, ts_hour) COMMENT 'Index on sensor foreign key and hourly timestamp'
 ) ENGINE = InnoDB
   ROW_FORMAT = COMPRESSED
     COMMENT ='RuuviTag data aggregated by the hour';
+
 -- ─────────────────────────────────────────────────────────────
 -- View: all metrics with calculated fields
--- Used for historical dashboards
 -- ─────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW measurements_calculated AS
 SELECT m.id,
        m.ts,
-       m.device_fk,
-       d.device_id,
-       d.device_name,
-       d.gateway_id,
-       d.gateway_name,
-       -- Raw measurements
+       m.sensor_fk,
+       m.gateway_fk,
+       s.sensor_mac,
+       s.sensor_name,
+       g.gw_mac,
+       g.gateway_name,
        m.rssi,
        m.temperature,
        m.humidity,
@@ -172,8 +272,7 @@ SELECT m.id,
            (m.humidity / 100)
                * 611.2 * EXP((17.625 * m.temperature) / (243.04 + m.temperature))
                / (461.5 * (m.temperature + 273.15))
-           ) *
-       1000                                                                                            AS absolute_humidity,
+           ) * 1000                                                                                    AS absolute_humidity,
 
        -- Air density humid (kg/m³)
        (
@@ -226,24 +325,23 @@ SELECT m.id,
            ELSE 0.0
            END                                                                                         AS battery_percentage
 FROM measurements m
-         INNER JOIN devices d ON d.id = m.device_fk;
+         INNER JOIN sensors s ON s.id = m.sensor_fk
+         INNER JOIN gateways g ON g.id = m.gateway_fk;
 
 -- ─────────────────────────────────────────────────────────────
--- View: latest metric calculated by device
--- Used for stat panels / gauges
+-- View: latest metric calculated by sensor
 -- ─────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW latest_measurements AS
 SELECT mc.*
 FROM measurements_calculated mc
-         INNER JOIN (SELECT device_fk,
+         INNER JOIN (SELECT sensor_fk,
                             MAX(ts) AS max_ts
                      FROM measurements
-                     GROUP BY device_fk) latest ON mc.device_id = (SELECT device_id
-                                                                   FROM devices
-                                                                   WHERE id = latest.device_fk) AND
+                     GROUP BY sensor_fk) latest ON mc.sensor_fk = latest.sensor_fk AND
                                                    mc.ts = latest.max_ts;
 
 CREATE OR REPLACE VIEW measurements_hourly_calculated AS
-    SELECT mh.* , d.device_id, d.device_name, d.gateway_id, d.gateway_name
-    FROM measurements_hourly mh
-             INNER JOIN devices d ON d.id = mh.device_fk;
+SELECT mh.*, s.sensor_mac, s.sensor_name, g.gw_mac, g.gateway_name
+FROM measurements_hourly mh
+         INNER JOIN sensors s ON s.id = mh.sensor_fk
+         INNER JOIN gateways g ON g.id = mh.gateway_fk;

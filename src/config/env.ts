@@ -2,27 +2,13 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 dotenv.config({ path: 'config/.env' });
-function parseMacMap(envVar: string | undefined): Record<string, string> {
-  if (!envVar) return {};
-  try {
-    const parsed = JSON.parse(envVar);
-    if (typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed as Record<string, string>;
-  } catch {
-    console.warn(`[config] Failed to parse MAC map: ${envVar}`);
-    return {};
-  }
-}
+
 function toBoolean(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
   return value.toLowerCase() === 'true';
 }
+
 const configSchema = z.object({
-  gwCfg: z.object({
-    user: z.string().optional(),
-    password: z.string().optional(),
-    bearerToken: z.string().optional(),
-  }),
   mqtt: z.object({
     protocol: z.string(),
     host: z.string(),
@@ -54,18 +40,10 @@ const configSchema = z.object({
   mariaBufferSize: z.number(),
   flushInterval: z.number(),
   httpPort: z.number(),
-  companyCode: z.number(),
   httpApiKey: z.string().min(1),
-  gatewayNames: z.record(z.string()),
-  tagNames: z.record(z.string()),
 });
 
 export const config = configSchema.parse({
-  gwCfg: {
-    user: process.env.GW_CFG_USER ?? 'ruuvi-cfg',
-    password: process.env.GW_CFG_PASSWORD ?? '',
-    bearerToken: process.env.GW_CFG_BEARER_TOKEN ?? '',
-  },
   mqtt: {
     protocol: process.env.MQTT_PROTOCOL ?? 'mqtt',
     host: process.env.MQTT_HOST ?? 'localhost',
@@ -97,8 +75,5 @@ export const config = configSchema.parse({
   mariaBufferSize: Number(process.env.MARIA_BUFFER_SIZE ?? 100),
   flushInterval: Number(process.env.FLUSH_INTERVAL ?? 5000),
   httpPort: Number(process.env.HTTP_PORT ?? 3002),
-  companyCode: Number(process.env.COMPANY_CODE ?? 1177),
   httpApiKey: process.env.HTTP_API_KEY!,
-  gatewayNames: parseMacMap(process.env.GATEWAY_NAMES),
-  tagNames: parseMacMap(process.env.TAG_NAMES),
 });

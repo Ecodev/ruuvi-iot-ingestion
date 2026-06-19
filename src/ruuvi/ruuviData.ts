@@ -14,12 +14,10 @@ export class RuuviData {
 
   constructor(
     public coordinates: string,
-    public deviceId: string,
-    public deviceName: string,
-    public gatewayId: string,
+    public sensorId: string,
+    public sensorName: string,
+    public gwMac: string,
     public gatewayName: string,
-    public providerId: string,
-    public rawData: string,
     public rssi: number | undefined,
     public timestamp: number,
   ) {}

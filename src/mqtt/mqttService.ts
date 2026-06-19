@@ -73,20 +73,17 @@ export function startMqtt() {
       const parts = topic.split('/');
       if (parts.length < 3) return;
 
+      // Names default to the MAC itself - rename later directly in the DB
       const gatewayMac = parts[1].replace(/[^A-F0-9:]/gi, '');
       const tagMac = parts[2].replace(/[^A-F0-9:]/gi, '');
-      const gatewayName = config.gatewayNames[gatewayMac] ?? gatewayMac;
-      const tagName = config.tagNames[tagMac] ?? tagMac;
       const timestamp = (Number(data.ts ?? data.gwts) + config.mqtt.timestampOffsetSeconds) * 1000;
 
       const sample = new RuuviData(
         data.coords ?? '',
         tagMac,
-        tagName,
+        normalizeMac(tagMac),
         gatewayMac,
-        gatewayName,
-        'ruuvi-gateway',
-        data.data ?? '',
+        normalizeMac(gatewayMac),
         data.rssi,
         timestamp,
       );
@@ -117,4 +114,7 @@ export function startMqtt() {
   });
   client.on('reconnect', () => logger.info('MQTT reconnecting...'));
   client.on('offline', () => mqttConnected.set(0));
+}
+function normalizeMac(mac: string): string {
+  return mac.toUpperCase().replace(/[^A-F0-9]/g, '');
 }
