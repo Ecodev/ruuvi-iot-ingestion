@@ -211,7 +211,7 @@ export function startMariaMaintenanceTasks(): void {
     try {
       settings = await getSettings();
     } catch (err) {
-      logger.error({ err }, 'Failed to load app_settings - retrying in 1h');
+      logger.error({ err }, 'Failed to load settings - retrying in 1h');
       setTimeout(run, FALLBACK_INTERVAL_MS);
       return;
     }
@@ -225,5 +225,5 @@ export function startMariaMaintenanceTasks(): void {
   };
 
   setTimeout(run, FALLBACK_INTERVAL_MS);
-  logger.info('MariaDB maintenance scheduler started — policy read from app_settings on each run');
+  logger.info('MariaDB maintenance scheduler started — policy read from ettings on each run');
 }

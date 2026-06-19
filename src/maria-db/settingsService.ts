@@ -23,7 +23,7 @@ export async function getSettings(): Promise<Settings> {
   const [rows] = await getMariaPool().query<SettingsRow[]>(`SELECT * FROM settings WHERE id = 1`);
   const row = rows[0];
   if (!row) {
-    throw new Error('app_settings row missing — did initMariaSchema() run?');
+    throw new Error('settings row missing — did initMariaSchema() run?');
   }
   return {
     mariaRetentionEnabled: !!row.maria_retention_enabled,
