@@ -225,5 +225,5 @@ export function startMariaMaintenanceTasks(): void {
   };
 
   setTimeout(run, FALLBACK_INTERVAL_MS);
-  logger.info('MariaDB maintenance scheduler started — policy read from ettings on each run');
+  logger.info('MariaDB maintenance scheduler started — policy read from settings on each run');
 }
