@@ -4,7 +4,7 @@ import { logger } from '../logger/logger.js';
 import { GatewayConfigurationSchema } from '../ruuvi/gatewayConfigurationSchema.js';
 
 interface GatewayRow extends RowDataPacket {
-  gw_mac: string;
+  gateway_mac: string;
   gateway_name: string;
   gw_cfg_user: string | null;
   gw_cfg_password: string | null;
@@ -66,7 +66,7 @@ export function formatMac(macNoColon: string): string {
 }
 
 export async function getGatewayRow(gwMac: string): Promise<GatewayRow | null> {
-  const [rows] = await getMariaPool().query<GatewayRow[]>(`SELECT * FROM gateways WHERE gw_mac = ?`, [gwMac]);
+  const [rows] = await getMariaPool().query<GatewayRow[]>(`SELECT * FROM gateways WHERE gateway_mac = ?`, [gwMac]);
   return rows[0] ?? null;
 }
 
@@ -86,10 +86,10 @@ export function validateGatewayAuth(row: GatewayRow, authHeader: string): boolea
 }
 
 export function buildGwCfgJson(row: GatewayRow, remoteCfgUrl: string): unknown {
-  const macColon = formatMac(row.gw_mac);
+  const macColon = formatMac(row.gateway_mac);
 
   const raw = {
-    gw_mac: macColon,
+    gateway_mac: macColon,
 
     remote_cfg_use: !!row.remote_cfg_use,
     remote_cfg_url: remoteCfgUrl,
@@ -156,7 +156,7 @@ export function buildGwCfgJson(row: GatewayRow, remoteCfgUrl: string): unknown {
 
   const validation = GatewayConfigurationSchema.safeParse(raw);
   if (!validation.success) {
-    logger.error({ gwMac: row.gw_mac, errors: validation.error.errors }, 'Built gw_cfg failed schema validation');
+    logger.error({ gwMac: row.gateway_mac, errors: validation.error.errors }, 'Built gw_cfg failed schema validation');
     throw new Error('Invalid gateway configuration built from DB row');
   }
   return validation.data;

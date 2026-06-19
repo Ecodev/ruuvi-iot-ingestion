@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS gateways
 (
     id           SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    gw_mac   VARCHAR(17)  NOT NULL UNIQUE COMMENT 'MAC address of gateway (no separators, uppercase)',
+    gateway_mac   VARCHAR(17)  NOT NULL UNIQUE COMMENT 'MAC address of gateway (no separators, uppercase)',
     gateway_name VARCHAR(100) NOT NULL COMMENT 'Gateway name (admin-configurable)',
     first_seen   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the gateway was first seen',
     last_seen    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'Timestamp when the gateway was last seen'
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS gateways
     coordinates    VARCHAR(100) DEFAULT '' COMMENT 'GPS-coordinates of the Gateway',
     fw_update_url  VARCHAR(255) DEFAULT 'https://network.ruuvi.com/firmwareupdate' COMMENT 'URL of firmware update server',
 
-    INDEX idx_gateway_id (gw_mac) COMMENT 'Index on gateway MAC address',
+    INDEX idx_gateway_id (gateway_mac) COMMENT 'Index on gateway MAC address',
     INDEX idx_gateway_name (gateway_name) COMMENT 'Index on gateway name'
 ) ENGINE = InnoDB
     COMMENT ='Ruuvi Gateway registry and remote configuration';
@@ -224,7 +224,7 @@ SELECT m.id,
        m.gateway_fk,
        s.sensor_mac,
        s.sensor_name,
-       g.gw_mac,
+       g.gateway_mac,
        g.gateway_name,
        m.rssi,
        m.temperature,
@@ -341,7 +341,7 @@ FROM measurements_calculated mc
                                                    mc.ts = latest.max_ts;
 
 CREATE OR REPLACE VIEW measurements_hourly_calculated AS
-SELECT mh.*, s.sensor_mac, s.sensor_name, g.gw_mac, g.gateway_name
+SELECT mh.*, s.sensor_mac, s.sensor_name, g.gateway_mac, g.gateway_name
 FROM measurements_hourly mh
          INNER JOIN sensors s ON s.id = mh.sensor_fk
          INNER JOIN gateways g ON g.id = mh.gateway_fk;

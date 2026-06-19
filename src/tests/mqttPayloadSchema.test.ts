@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import ruuviSchema from '../ruuvi/ruuviMqttDataWithTimestampsSchema.js';
 
 const validPayload = {
-  gw_mac: 'F3:2D:EF:E7:2E:78',
+  gateway_mac: 'F3:2D:EF:E7:2E:78',
   rssi: -65,
   aoa: [],
   gwts: 1774824214,
@@ -51,8 +51,8 @@ describe('ruuviMqttDataWithTimestampsSchema', () => {
     if (result.success) expect(typeof result.data.gwts).toBe('number');
   });
 
-  it('should reject invalid gw_mac format', () => {
-    const result = ruuviSchema.safeParse({ ...validPayload, gw_mac: 'not-a-mac' });
+  it('should reject invalid gateway_mac format', () => {
+    const result = ruuviSchema.safeParse({ ...validPayload, gateway_mac: 'not-a-mac' });
     expect(result.success).toBe(false);
   });
 

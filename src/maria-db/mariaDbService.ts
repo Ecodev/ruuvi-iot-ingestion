@@ -55,13 +55,13 @@ async function resolveGatewayFk(conn: PoolConnection, d: RuuviData): Promise<num
   if (cached !== undefined) return cached;
 
   await conn.query(
-    `INSERT INTO gateways (gw_mac, gateway_name, mqtt_server, last_seen)
+    `INSERT INTO gateways (gateway_mac, gateway_name, mqtt_server, last_seen)
      VALUES (?, ?, ?, NOW(3))
      ON DUPLICATE KEY UPDATE last_seen = NOW(3)`,
     [d.gwMac, d.gatewayName, config.mqtt.host],
   );
 
-  const [[row]] = await conn.query<any[]>(`SELECT id FROM gateways WHERE gw_mac = ?`, [d.gwMac]);
+  const [[row]] = await conn.query<any[]>(`SELECT id FROM gateways WHERE gateway_mac = ?`, [d.gwMac]);
   gatewayCache.set(d.gwMac, row.id);
   return row.id;
 }
