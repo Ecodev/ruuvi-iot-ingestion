@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS measurements
 CREATE TABLE IF NOT EXISTS measurements_hourly
 (
     id                         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    ts_hour                    DATETIME          NOT NULL COMMENT 'Time rounded to the nearest hour (UTC)',
+    ts                    DATETIME          NOT NULL COMMENT 'Time rounded to the nearest hour (UTC)',
     sensor_fk                  SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to sensors table',
     gateway_fk                 SMALLINT UNSIGNED NOT NULL COMMENT 'Foreign key to gateways table',
     sample_count               SMALLINT UNSIGNED NOT NULL COMMENT 'Number of aggregated measurements',
@@ -207,9 +207,9 @@ CREATE TABLE IF NOT EXISTS measurements_hourly
             ON DELETE RESTRICT
             ON UPDATE CASCADE,
 
-    UNIQUE KEY uq_sensor_gateway_hour (sensor_fk, gateway_fk, ts_hour) COMMENT 'Unique constraint to prevent duplicate hourly records for the same sensor and gateway',
-    INDEX idx_hour (ts_hour) COMMENT 'Index on hourly timestamp',
-    INDEX idx_sensor_hour (sensor_fk, ts_hour) COMMENT 'Index on sensor foreign key and hourly timestamp'
+    UNIQUE KEY uq_sensor_gateway_hour (sensor_fk, gateway_fk, ts) COMMENT 'Unique constraint to prevent duplicate hourly records for the same sensor and gateway',
+    INDEX idx_hour (ts) COMMENT 'Index on hourly timestamp',
+    INDEX idx_sensor_hour (sensor_fk, ts) COMMENT 'Index on sensor foreign key and hourly timestamp'
 ) ENGINE = InnoDB
   ROW_FORMAT = COMPRESSED
     COMMENT ='RuuviTag data aggregated by the hour';
