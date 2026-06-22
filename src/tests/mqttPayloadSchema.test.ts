@@ -52,7 +52,7 @@ describe('ruuviMqttDataWithTimestampsSchema', () => {
   });
 
   it('should reject invalid gateway_mac format', () => {
-    const result = ruuviSchema.safeParse({ ...validPayload, gateway_mac: 'not-a-mac' });
+    const result = ruuviSchema.safeParse({ ...validPayload, gw_mac: 'not-a-mac' });
     expect(result.success).toBe(false);
   });
 
