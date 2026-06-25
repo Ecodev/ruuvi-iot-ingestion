@@ -5,10 +5,14 @@ import { config } from '../config/env.js';
 import { register, collectDefaultMetrics } from 'prom-client';
 import { logger } from '../logger/logger.js';
 import { getGatewayRow, validateGatewayAuth, buildGwCfgJson } from '../maria-db/gatewayConfigService.js';
+import { getMariaPool } from '../maria-db/mariaDbService.js';
+import { RowDataPacket } from 'mysql2';
 
 function normalizeMac(mac?: string): string | undefined {
   if (!mac) return undefined;
-  return mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+  const stripped = mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (stripped.length !== 12) return undefined;
+  return stripped.match(/.{1,2}/g)!.join(':');
 }
 
 function resolveMacFromRequest(req: FastifyRequest): string | undefined {
@@ -18,13 +22,28 @@ function resolveMacFromRequest(req: FastifyRequest): string | undefined {
   const urlSegment = (req.params as Record<string, string>)['*'] ?? '';
   if (urlSegment.endsWith('.json')) {
     const potentialMac = normalizeMac(urlSegment.replace('.json', ''));
-    if (potentialMac && /^[A-F0-9]{12}$/.test(potentialMac)) return potentialMac;
+    if (potentialMac) return potentialMac;
   }
   return undefined;
 }
 
+export async function getSingleGatewayId(): Promise<string | null> {
+  const [rows] = await getMariaPool().query<RowDataPacket[]>(
+    `SELECT gateway_mac FROM gateways WHERE remote_cfg_use = 1 LIMIT 2`,
+  );
+  if (rows.length === 1) return rows[0].gateway_mac as string;
+  return null;
+}
 async function handleGwCfg(req: FastifyRequest, reply: FastifyReply) {
-  const mac = resolveMacFromRequest(req);
+  let mac = resolveMacFromRequest(req);
+
+  if (!mac) {
+    const fallback = await getSingleGatewayId();
+    if (fallback) {
+      logger.info({ fallback }, 'No MAC in request - using single registered gateway as fallback');
+      mac = fallback;
+    }
+  }
 
   if (!mac) {
     logger.warn({ url: req.url }, 'GW cfg request without resolvable MAC');

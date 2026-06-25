@@ -60,11 +60,6 @@ interface GatewayRow extends RowDataPacket {
   fw_update_url: string;
 }
 
-/** Formats a no-separator MAC ("F32DEFE72E78") into colon format ("F3:2D:EF:E7:2E:78") */
-export function formatMac(macNoColon: string): string {
-  return macNoColon.match(/.{1,2}/g)?.join(':') ?? macNoColon;
-}
-
 export async function getGatewayRow(gwMac: string): Promise<GatewayRow | null> {
   const [rows] = await getMariaPool().query<GatewayRow[]>(`SELECT * FROM gateways WHERE gateway_mac = ?`, [gwMac]);
   return rows[0] ?? null;
@@ -86,7 +81,7 @@ export function validateGatewayAuth(row: GatewayRow, authHeader: string): boolea
 }
 
 export function buildGwCfgJson(row: GatewayRow, remoteCfgUrl: string): unknown {
-  const macColon = formatMac(row.gateway_mac);
+  const macColon = row.gateway_mac;
 
   const raw = {
     gateway_mac: macColon,
